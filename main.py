@@ -95,7 +95,6 @@ def book_gen(start_pk: int = 1) -> Generator:
     :param start_pk: счетчик книг, автоинкремент, по умолчанию 1.
     :return: генератор книг.
     """
-    #dict_ = dict()
     pk = start_pk
     for _ in range(100):
         dict_ = dict()
