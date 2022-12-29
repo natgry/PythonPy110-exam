@@ -5,7 +5,8 @@
 import json
 import random
 import re
-from typing import Generator
+import sys
+from typing import Generator, Callable
 
 import faker
 
@@ -14,6 +15,38 @@ from conf import MODEL
 
 BOOKS_FILE = "books.txt"
 OUTPUT_FILE = "books.json"
+
+
+def book_title_len_const(func: Callable):
+    """
+    Декоратор. Проверяет длину названия книги.
+    :param func: декорируемая функция
+    :return: None
+    :raise: ValueError, если длина названия книги больше заданного значения
+    """
+    title_max_len = 255
+
+    def wrapper():
+        title = func()
+        if len(title) > title_max_len:
+            raise ValueError(f"Book title '{title}' length is {len(title)}. Expected: no more than {title_max_len}")
+    return wrapper
+
+
+def book_title_len(max_len: int):
+    """
+    Декоратор. Проверяет длину названия книги.
+    :param max_len: максимальная длина названия книги, с которой сравнивается актуальная длина названия книги
+    :return: None
+    :raise: ValueError, если длина названия книги больше заданного значения
+    """
+    def decorator(func):
+        def wrapper(*args, **kwargs):
+            title = func(*args, **kwargs)
+            if len(title) > max_len:
+                raise ValueError(f"Book title '{title}' length is {len(title)}. Expected: no more than {max_len}")
+        return wrapper
+    return decorator
 
 
 def get_year() -> int:
@@ -73,6 +106,7 @@ def get_author() -> list[str]:
     return authors
 
 
+@book_title_len(255)
 def get_title() -> str:
     """
     Возвращает название книги из списка книг.
@@ -89,6 +123,32 @@ def get_title() -> str:
     return random.choice(seq=books)["title"]
 
 
+def get_book_title_offset() -> list:
+    """
+    Возращает в байтах смещение строк с книгами в файле.
+    :return: список смещений в байтах
+    """
+    title_offset = [0]
+    with open(BOOKS_FILE, 'rb') as f:
+        for _ in f:
+            title_offset.append(f.tell())
+    return title_offset[:-1]
+
+
+def get_title_effective() -> str:
+    """
+    Cчитывает только одну случайную строку с названием книги из файла.
+    Список книг хранится в файле books.txt.
+    :return: название книги
+    """
+    title_positions = get_book_title_offset()
+    with open(BOOKS_FILE, 'r', encoding="utf8") as f:
+        read_pos = random.choice(title_positions)
+        f.seek(read_pos)
+        book = f.readline().strip()
+    return book
+
+
 def book_gen(start_pk: int = 1) -> Generator:
     """
     Возвращает генератор книг.
@@ -101,7 +161,7 @@ def book_gen(start_pk: int = 1) -> Generator:
         dict_["model"] = MODEL
         dict_["pk"] = pk
         dict_["fields"] = dict()
-        dict_["fields"]["title"] = get_title()
+        dict_["fields"]["title"] = get_title_effective()
         dict_["fields"]["year"] = get_year()
         dict_["fields"]["pages"] = get_pages()
         dict_["fields"]["isbn13"] = get_isbn13()
